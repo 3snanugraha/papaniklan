@@ -11,6 +11,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
 import { useVideoPlayer, VideoView } from "expo-video";
+import { useEvent } from "expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
 import * as ScreenOrientation from "expo-screen-orientation";
@@ -26,7 +27,6 @@ export default function VideoPlayerScreen() {
   const [showControls, setShowControls] = useState(true);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
-  const [isPlaying, setIsPlaying] = useState(true);
   const [currentPosition, setCurrentPosition] = useState(0);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -37,14 +37,12 @@ export default function VideoPlayerScreen() {
         ScreenOrientation.OrientationLock.LANDSCAPE
       );
     };
-    
+
     setLandscape();
-    
+
     // Return to portrait when unmounting
     return () => {
-      ScreenOrientation.lockAsync(
-        ScreenOrientation.OrientationLock.PORTRAIT
-      );
+      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
     };
   }, []);
 
@@ -96,45 +94,54 @@ export default function VideoPlayerScreen() {
   // Initialize video player
   const currentVideo = videos[currentVideoIndex];
   const videoSource = currentVideo?.uri || "";
-  
-  const player = useVideoPlayer(videoSource, player => {
+
+  const player = useVideoPlayer(videoSource, (player) => {
     player.loop = false;
-    
+    player.timeUpdateEventInterval = 0.5; // Update time every 0.5 seconds
+
     // Start playing when ready
     if (!isLoading) {
       player.play();
     }
   });
-  
-  // Track playback status using addListener
+
+  // Use the useEvent hook to track player state
+  const { isPlaying } = useEvent(player, "playingChange", {
+    isPlaying: player?.playing || false,
+  });
+
+  // Set up time update event to track progress
   useEffect(() => {
     if (!player) return;
-    
-    // Listen for playing state changes
-    const playingSubscription = player.addListener('playingChange', (playing) => {
-      setIsPlaying(playing);
-    });
-    
-    // Listen for position changes
-    const positionSubscription = player.addListener('positionChange', (position) => {
-      setCurrentPosition(position);
-      if (player.duration > 0) {
-        setProgress(position / player.duration);
-        setDuration(player.duration);
+
+    const timeUpdateSubscription = player.addListener(
+      "timeUpdate",
+      (payload) => {
+        setCurrentPosition(payload.currentTime);
+        if (player.duration > 0) {
+          setProgress(payload.currentTime / player.duration);
+          setDuration(player.duration);
+        }
       }
-    });
-    
+    );
+
     // Listen for playback end
-    const endSubscription = player.addListener('end', () => {
+    const playToEndSubscription = player.addListener("playToEnd", () => {
       handleVideoFinish();
     });
-    
+
     return () => {
-      playingSubscription.remove();
-      positionSubscription.remove();
-      endSubscription.remove();
+      timeUpdateSubscription.remove();
+      playToEndSubscription.remove();
     };
   }, [player, currentVideoIndex]);
+
+  // Update player when video index changes
+  useEffect(() => {
+    if (player && currentVideo) {
+      player.replace(currentVideo.uri);
+    }
+  }, [currentVideoIndex, currentVideo]);
 
   const handleVideoPress = () => {
     setShowControls(!showControls);
@@ -218,10 +225,12 @@ export default function VideoPlayerScreen() {
         className="flex-1 justify-center items-center"
       >
         {currentVideo && (
-          <VideoView 
+          <VideoView
             style={styles.videoView}
             player={player}
             allowsFullscreen={false}
+            nativeControls={false}
+            contentFit="contain"
           />
         )}
       </TouchableOpacity>
@@ -235,8 +244,8 @@ export default function VideoPlayerScreen() {
             className="px-5 pt-6 pb-6"
           >
             <View className="flex-row items-center justify-between">
-              <TouchableOpacity 
-                className="p-2" 
+              <TouchableOpacity
+                className="p-2"
                 onPress={async () => {
                   // Return to portrait mode before going back
                   await ScreenOrientation.lockAsync(
@@ -314,5 +323,5 @@ const styles = StyleSheet.create({
   videoView: {
     width: "100%",
     height: "100%",
-  }
+  },
 });
