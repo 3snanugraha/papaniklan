@@ -16,9 +16,9 @@ export default function AddVideoButton({ onPress }: AddVideoButtonProps) {
         <Ionicons name="add" size={24} color="#407BFF" />
       </View>
       <View className="flex-1">
-        <Text className="font-medium text-gray-800">Add New Video</Text>
+        <Text className="font-medium text-gray-800">Tambah Video Baru</Text>
         <Text className="text-xs text-gray-500 mt-1">
-          Upload a video from your device
+          Unggah video dari perangkat Anda
         </Text>
       </View>
       <Ionicons name="chevron-forward" size={20} color="#407BFF" />

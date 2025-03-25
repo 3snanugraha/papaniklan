@@ -1,13 +1,15 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import {
   View,
   Text,
   TouchableOpacity,
   Image,
   ScrollView,
+  RefreshControl,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { Link } from "expo-router";
+import { Link, useFocusEffect } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { getVideos } from "../../utils/database";
 import { Video } from "../../types";
@@ -15,27 +17,43 @@ import { Video } from "../../types";
 export default function HomeScreen() {
   const [videoCount, setVideoCount] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [recentVideos, setRecentVideos] = useState<Video[]>([]);
 
-  useEffect(() => {
-    const loadData = async () => {
-      try {
-        const videos = await getVideos();
-        setVideoCount(videos.length);
-        setRecentVideos(videos.slice(0, 3)); 
-      } catch (error) {
-        console.error("Error memuat video:", error);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  // Function to load videos data
+  const loadData = async () => {
+    try {
+      const videos = await getVideos();
+      setVideoCount(videos.length);
+      setRecentVideos(videos.slice(0, 3));
+    } catch (error) {
+      console.error("Error memuat video:", error);
+    } finally {
+      setIsLoading(false);
+      setRefreshing(false);
+    }
+  };
 
+  // Initial load
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  // Refresh when screen comes into focus (returning from video manager)
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
+
+  // Handle pull-to-refresh
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
     loadData();
   }, []);
 
   return (
     <View className="flex-1 bg-gray-50">
-
       {/* Header dengan gradient */}
       <LinearGradient
         colors={["#407BFF", "#2A5CDC", "#1E45B8"]}
@@ -73,11 +91,25 @@ export default function HomeScreen() {
         </View>
       </LinearGradient>
 
-      <ScrollView className="flex-1 px-5 pt-6">
+      <ScrollView
+        className="flex-1 px-5 pt-6"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={["#407BFF"]}
+            tintColor="#407BFF"
+          />
+        }
+      >
         {/* Tombol aksi utama */}
         <View className="flex-row justify-between mb-8">
           <Link href="/(home)/videoplayer" asChild>
-            <TouchableOpacity className="bg-white rounded-2xl p-5 shadow-sm w-[48%] items-center border border-gray-100">
+            <TouchableOpacity
+              className="bg-white rounded-2xl p-5 shadow-sm w-[48%] items-center border border-gray-100"
+              disabled={videoCount === 0}
+              style={{ opacity: videoCount === 0 ? 0.7 : 1 }}
+            >
               <View className="w-16 h-16 bg-blue-100 rounded-full items-center justify-center mb-3">
                 <Ionicons name="play-circle" size={40} color="#407BFF" />
               </View>
@@ -109,12 +141,15 @@ export default function HomeScreen() {
 
           {isLoading ? (
             <View className="bg-white rounded-xl p-4 shadow-sm items-center justify-center h-24">
-              <Text className="text-gray-400">Memuat video terbaru...</Text>
+              <ActivityIndicator size="small" color="#407BFF" />
+              <Text className="text-gray-400 mt-2">
+                Memuat video terbaru...
+              </Text>
             </View>
           ) : recentVideos.length > 0 ? (
             recentVideos.map((video, index) => (
               <View
-                key={index}
+                key={video.id}
                 className="bg-white rounded-xl p-4 mb-3 shadow-sm flex-row items-center"
               >
                 <View className="w-16 h-16 bg-gray-200 rounded-lg mr-4 items-center justify-center overflow-hidden">
@@ -141,9 +176,11 @@ export default function HomeScreen() {
                       : "Durasi tidak diketahui"}
                   </Text>
                 </View>
-                <TouchableOpacity className="p-2">
-                  <Ionicons name="play-circle" size={28} color="#407BFF" />
-                </TouchableOpacity>
+                <Link href="/(home)/videoplayer" asChild>
+                  <TouchableOpacity className="p-2">
+                    <Ionicons name="play-circle" size={28} color="#407BFF" />
+                  </TouchableOpacity>
+                </Link>
               </View>
             ))
           ) : (
@@ -177,8 +214,8 @@ export default function HomeScreen() {
             </View>
             <Text className="text-blue-700 text-sm">
               Anda dapat membuat slideshow yang indah dengan menyusun video
-              sesuai urutan yang Anda inginkan. Coba tambahkan video dengan
-              tema serupa untuk pengalaman yang lebih menyatu.
+              sesuai urutan yang Anda inginkan. Coba tambahkan video dengan tema
+              serupa untuk pengalaman yang lebih menyatu.
             </Text>
           </View>
         </View>

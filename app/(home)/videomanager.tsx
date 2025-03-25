@@ -66,25 +66,25 @@ export default function VideoManagerScreen() {
       if (editingVideo) {
         // Update existing video
         await updateVideo(editingVideo.id, videoData);
-        Alert.alert("Success", "Video updated successfully");
+        Alert.alert("Success", "Video Berhasil diupdate");
       } else {
         // Add new video
         await addVideo(videoData);
-        Alert.alert("Success", "Video added successfully");
+        Alert.alert("Success", "Video Berhasil ditambahkan");
       }
 
       setModalVisible(false);
       loadVideos();
     } catch (error) {
-      console.error("Error saving video:", error);
+      console.error("Error saat menyimpan Video:", error);
       throw error; // Re-throw to be handled by the modal
     }
   };
 
   const handleDeleteVideo = (video: Video) => {
     Alert.alert(
-      "Confirm Delete",
-      `Are you sure you want to delete "${video.title}"?`,
+      "Konfirmasi",
+      `Apakah kamu yakin akan menghapus video "${video.title}"?`,
       [
         { text: "Cancel", style: "cancel" },
         {
@@ -94,10 +94,10 @@ export default function VideoManagerScreen() {
             try {
               await deleteVideo(video.id);
               loadVideos();
-              Alert.alert("Success", "Video deleted successfully");
+              Alert.alert("Sukses", "Video Berhasil dihapus");
             } catch (error) {
-              console.error("Error deleting video:", error);
-              Alert.alert("Error", "Failed to delete video");
+              console.error("Error saat menghapus video:", error);
+              Alert.alert("Error", "Gagal menghapus video");
             }
           },
         },
@@ -119,9 +119,9 @@ export default function VideoManagerScreen() {
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View>
-            <Text className="text-white text-xl font-bold">Video Manager</Text>
+            <Text className="text-white text-xl font-bold">Kelola Video</Text>
             <Text className="text-blue-100 text-xs mt-1">
-              Add, edit or remove videos
+              Tambah, edit atau hapus video
             </Text>
           </View>
         </View>
@@ -134,13 +134,13 @@ export default function VideoManagerScreen() {
 
         {/* Video List */}
         <Text className="text-lg font-bold text-gray-800 mb-3">
-          Your Videos ({videos.length})
+          Video saat ini ({videos.length})
         </Text>
 
         {isLoading ? (
           <View className="flex-1 justify-center items-center">
             <ActivityIndicator size="large" color="#407BFF" />
-            <Text className="text-gray-500 mt-4">Loading videos...</Text>
+            <Text className="text-gray-500 mt-4">Memuat videos...</Text>
           </View>
         ) : videos.length > 0 ? (
           <FlatList
@@ -158,8 +158,8 @@ export default function VideoManagerScreen() {
           />
         ) : (
           <EmptyState
-            title="No videos yet"
-            message="Tap 'Add New Video' to upload your first video"
+            title="Tidak ada video"
+            message="Ketuk `Tambah Video Baru` untuk memulai"
           />
         )}
       </View>
