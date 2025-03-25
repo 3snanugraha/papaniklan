@@ -33,7 +33,7 @@ export default function UploadModal({
   const [videoThumbnail, setVideoThumbnail] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Reset form when modal opens with new data
+  // Reset formulir ketika modal dibuka dengan data baru
   useEffect(() => {
     if (visible) {
       if (editingVideo) {
@@ -58,15 +58,15 @@ export default function UploadModal({
       if (!result.canceled && result.assets && result.assets.length > 0) {
         const asset = result.assets[0];
         setVideoUri(asset.uri);
-        // Auto-generate title from filename if empty
+        // Membuat judul otomatis dari nama file jika kosong
         if (!videoTitle) {
-          const filename = asset.name || "Untitled Video";
+          const filename = asset.name || "Video Tanpa Judul";
           setVideoTitle(filename.split(".")[0]);
         }
       }
     } catch (error) {
-      console.error("Error picking video:", error);
-      Alert.alert("Error", "Failed to select video");
+      console.error("Kesalahan memilih video:", error);
+      Alert.alert("Kesalahan", "Gagal memilih video");
     }
   };
 
@@ -83,19 +83,19 @@ export default function UploadModal({
         setVideoThumbnail(result.assets[0].uri);
       }
     } catch (error) {
-      console.error("Error picking thumbnail:", error);
-      Alert.alert("Error", "Failed to select thumbnail");
+      console.error("Kesalahan memilih thumbnail:", error);
+      Alert.alert("Kesalahan", "Gagal memilih thumbnail");
     }
   };
 
   const handleSaveVideo = async () => {
     if (!videoUri) {
-      Alert.alert("Error", "Please select a video");
+      Alert.alert("Kesalahan", "Silakan pilih video");
       return;
     }
 
     if (!videoTitle.trim()) {
-      Alert.alert("Error", "Please enter a title for the video");
+      Alert.alert("Kesalahan", "Silakan masukkan judul video");
       return;
     }
 
@@ -111,8 +111,8 @@ export default function UploadModal({
 
       await onSave(videoData);
     } catch (error) {
-      console.error("Error saving video:", error);
-      Alert.alert("Error", "Failed to save video");
+      console.error("Kesalahan menyimpan video:", error);
+      Alert.alert("Kesalahan", "Gagal menyimpan video");
     } finally {
       setIsSubmitting(false);
     }
@@ -129,7 +129,7 @@ export default function UploadModal({
         <View className="bg-white rounded-t-3xl p-5 h-[80%]">
           <View className="flex-row justify-between items-center mb-6">
             <Text className="text-xl font-bold text-gray-800">
-              {editingVideo ? "Edit Video" : "Add New Video"}
+              {editingVideo ? "Edit Video" : "Tambah Video Baru"}
             </Text>
             <TouchableOpacity className="p-2" onPress={onClose}>
               <Ionicons name="close" size={24} color="#64748b" />
@@ -137,44 +137,44 @@ export default function UploadModal({
           </View>
 
           <ScrollView showsVerticalScrollIndicator={false}>
-            {/* Video Title */}
+            {/* Judul Video */}
             <View className="mb-5">
               <Text className="text-gray-700 font-medium mb-2">
-                Video Title
+                Judul Video
               </Text>
               <TextInput
                 className="bg-gray-100 p-3 rounded-lg text-gray-800"
-                placeholder="Enter video title"
+                placeholder="Masukkan judul video"
                 value={videoTitle}
                 onChangeText={setVideoTitle}
               />
             </View>
 
-            {/* Video Selection */}
+            {/* Pemilihan Video */}
             <View className="mb-5">
               <Text className="text-gray-700 font-medium mb-2">
-                Select Video
+                Pilih Video
               </Text>
               <TouchableOpacity
                 className="bg-gray-100 p-4 rounded-lg flex-row items-center justify-between"
                 onPress={pickVideo}
               >
                 <Text className="text-gray-600">
-                  {videoUri ? "Video selected" : "Tap to select a video file"}
+                  {videoUri ? "Video terpilih" : "Ketuk untuk memilih file video"}
                 </Text>
                 <Ionicons name="cloud-upload" size={24} color="#407BFF" />
               </TouchableOpacity>
               {videoUri ? (
                 <Text className="text-xs text-green-600 mt-2">
-                  ✓ Video file selected
+                  ✓ File video terpilih
                 </Text>
               ) : null}
             </View>
 
-            {/* Thumbnail Selection */}
+            {/* Pemilihan Thumbnail */}
             <View className="mb-8">
               <Text className="text-gray-700 font-medium mb-2">
-                Thumbnail (Optional)
+                Thumbnail (Opsional)
               </Text>
               <TouchableOpacity
                 className="bg-gray-100 rounded-lg overflow-hidden h-40 items-center justify-center"
@@ -190,13 +190,13 @@ export default function UploadModal({
                   <View className="items-center">
                     <Ionicons name="image" size={40} color="#9ca3af" />
                     <Text className="text-gray-500 mt-2">
-                      Tap to select thumbnail
+                      Ketuk untuk memilih thumbnail
                     </Text>
                   </View>
                 )}
               </TouchableOpacity>
             </View>
-            {/* Save Button */}
+            {/* Tombol Simpan */}
             <TouchableOpacity
               className="bg-[#407BFF] p-4 rounded-xl items-center mb-6"
               onPress={handleSaveVideo}
@@ -206,7 +206,7 @@ export default function UploadModal({
                 <ActivityIndicator color="#ffffff" />
               ) : (
                 <Text className="text-white font-bold text-base">
-                  {editingVideo ? "Update Video" : "Save Video"}
+                  {editingVideo ? "Perbarui Video" : "Simpan Video"}
                 </Text>
               )}
             </TouchableOpacity>

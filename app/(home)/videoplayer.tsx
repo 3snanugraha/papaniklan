@@ -3,16 +3,17 @@ import {
   View,
   Text,
   TouchableOpacity,
-  StyleSheet,
   Dimensions,
   ActivityIndicator,
   Alert,
+  StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
-import { Video as ExpoVideo, ResizeMode } from "expo-av";
+import { useVideoPlayer, VideoView } from "expo-video";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
+import * as ScreenOrientation from "expo-screen-orientation";
 import { getVideos } from "../../utils/database";
 import { Video } from "../../types";
 
@@ -22,11 +23,30 @@ export default function VideoPlayerScreen() {
   const [videos, setVideos] = useState<Video[]>([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [progress, setProgress] = useState(0);
-  const videoRef = useRef<ExpoVideo>(null);
+  const [duration, setDuration] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
+  const [currentPosition, setCurrentPosition] = useState(0);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Set landscape orientation when component mounts
+  useEffect(() => {
+    const setLandscape = async () => {
+      await ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.LANDSCAPE
+      );
+    };
+    
+    setLandscape();
+    
+    // Return to portrait when unmounting
+    return () => {
+      ScreenOrientation.lockAsync(
+        ScreenOrientation.OrientationLock.PORTRAIT
+      );
+    };
+  }, []);
 
   // Load videos on mount
   useEffect(() => {
@@ -73,6 +93,49 @@ export default function VideoPlayerScreen() {
     }
   };
 
+  // Initialize video player
+  const currentVideo = videos[currentVideoIndex];
+  const videoSource = currentVideo?.uri || "";
+  
+  const player = useVideoPlayer(videoSource, player => {
+    player.loop = false;
+    
+    // Start playing when ready
+    if (!isLoading) {
+      player.play();
+    }
+  });
+  
+  // Track playback status using addListener
+  useEffect(() => {
+    if (!player) return;
+    
+    // Listen for playing state changes
+    const playingSubscription = player.addListener('playingChange', (playing) => {
+      setIsPlaying(playing);
+    });
+    
+    // Listen for position changes
+    const positionSubscription = player.addListener('positionChange', (position) => {
+      setCurrentPosition(position);
+      if (player.duration > 0) {
+        setProgress(position / player.duration);
+        setDuration(player.duration);
+      }
+    });
+    
+    // Listen for playback end
+    const endSubscription = player.addListener('end', () => {
+      handleVideoFinish();
+    });
+    
+    return () => {
+      playingSubscription.remove();
+      positionSubscription.remove();
+      endSubscription.remove();
+    };
+  }, [player, currentVideoIndex]);
+
   const handleVideoPress = () => {
     setShowControls(!showControls);
 
@@ -89,13 +152,12 @@ export default function VideoPlayerScreen() {
   };
 
   const togglePlayPause = () => {
-    if (videoRef.current) {
+    if (player) {
       if (isPlaying) {
-        videoRef.current.pauseAsync();
+        player.pause();
       } else {
-        videoRef.current.playAsync();
+        player.play();
       }
-      setIsPlaying(!isPlaying);
     }
   };
 
@@ -103,10 +165,12 @@ export default function VideoPlayerScreen() {
     if (currentVideoIndex < videos.length - 1) {
       setCurrentVideoIndex(currentVideoIndex + 1);
       setProgress(0);
+      setCurrentPosition(0);
     } else {
       // Loop back to first video
       setCurrentVideoIndex(0);
       setProgress(0);
+      setCurrentPosition(0);
     }
   };
 
@@ -114,10 +178,12 @@ export default function VideoPlayerScreen() {
     if (currentVideoIndex > 0) {
       setCurrentVideoIndex(currentVideoIndex - 1);
       setProgress(0);
+      setCurrentPosition(0);
     } else {
       // Loop to last video
       setCurrentVideoIndex(videos.length - 1);
       setProgress(0);
+      setCurrentPosition(0);
     }
   };
 
@@ -125,21 +191,10 @@ export default function VideoPlayerScreen() {
     playNextVideo();
   };
 
-  const handlePlaybackStatusUpdate = (status: any) => {
-    if (status.isLoaded && status.durationMillis) {
-      setProgress(status.positionMillis / status.durationMillis);
-    }
-
-    if (status.didJustFinish) {
-      handleVideoFinish();
-    }
-  };
-
-  const formatTime = (milliseconds: number) => {
-    const totalSeconds = Math.floor(milliseconds / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes}:${seconds < 10 ? "0" : ""}${seconds}`;
+  const formatTime = (seconds: number) => {
+    const minutes = Math.floor(seconds / 60);
+    const remainingSeconds = Math.floor(seconds % 60);
+    return `${minutes}:${remainingSeconds < 10 ? "0" : ""}${remainingSeconds}`;
   };
 
   if (isLoading) {
@@ -152,11 +207,9 @@ export default function VideoPlayerScreen() {
     );
   }
 
-  const currentVideo = videos[currentVideoIndex];
-
   return (
     <View className="flex-1 bg-black">
-      <StatusBar style="light" />
+      <StatusBar style="light" hidden={true} />
 
       {/* Video Player */}
       <TouchableOpacity
@@ -165,16 +218,10 @@ export default function VideoPlayerScreen() {
         className="flex-1 justify-center items-center"
       >
         {currentVideo && (
-          <ExpoVideo
-            ref={videoRef}
-            source={{ uri: currentVideo.uri }}
-            rate={1.0}
-            volume={1.0}
-            isMuted={false}
-            resizeMode={ResizeMode.CONTAIN}
-            shouldPlay={isPlaying}
-            onPlaybackStatusUpdate={handlePlaybackStatusUpdate}
-            style={{ width, height: height * 0.8 }}
+          <VideoView 
+            style={styles.videoView}
+            player={player}
+            allowsFullscreen={false}
           />
         )}
       </TouchableOpacity>
@@ -185,10 +232,19 @@ export default function VideoPlayerScreen() {
           {/* Top Bar */}
           <LinearGradient
             colors={["rgba(0,0,0,0.8)", "transparent"]}
-            className="px-5 pt-12 pb-6"
+            className="px-5 pt-6 pb-6"
           >
             <View className="flex-row items-center justify-between">
-              <TouchableOpacity className="p-2" onPress={() => router.back()}>
+              <TouchableOpacity 
+                className="p-2" 
+                onPress={async () => {
+                  // Return to portrait mode before going back
+                  await ScreenOrientation.lockAsync(
+                    ScreenOrientation.OrientationLock.PORTRAIT
+                  );
+                  router.back();
+                }}
+              >
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
               <Text className="text-white font-medium">
@@ -241,14 +297,10 @@ export default function VideoPlayerScreen() {
 
             <View className="flex-row justify-between items-center">
               <Text className="text-white text-xs">
-                {currentVideo?.duration
-                  ? formatTime(progress * currentVideo.duration * 1000)
-                  : "0:00"}
+                {formatTime(currentPosition)}
               </Text>
               <Text className="text-white text-xs">
-                {currentVideo?.duration
-                  ? formatTime(currentVideo.duration * 1000)
-                  : "Unknown"}
+                {duration ? formatTime(duration) : "Unknown"}
               </Text>
             </View>
           </LinearGradient>
@@ -257,3 +309,10 @@ export default function VideoPlayerScreen() {
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  videoView: {
+    width: "100%",
+    height: "100%",
+  }
+});
