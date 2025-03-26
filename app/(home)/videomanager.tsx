@@ -6,6 +6,7 @@ import {
   FlatList,
   Alert,
   ActivityIndicator,
+  Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router, useFocusEffect } from "expo-router";
@@ -16,94 +17,113 @@ import {
   updateVideo,
   deleteVideo,
 } from "../../utils/database";
-import { Video } from "../../types";
+import { Media } from "../../types";
 import { StatusBar } from "expo-status-bar";
+import { Picker } from "@react-native-picker/picker";
 
 // Import components
 import UploadModal from "../components/UploadModal";
-import VideoItem from "../components/VideoItem";
+import MediaItem from "../components/VideoItem";
 import EmptyState from "../components/EmptyState";
-import AddVideoButton from "../components/AddVideoButton";
+import AddMediaButton from "../components/AddVideoButton";
 
-export default function VideoManagerScreen() {
-  const [videos, setVideos] = useState<Video[]>([]);
+export default function MediaManagerScreen() {
+  const [mediaItems, setMediaItems] = useState<Media[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editingVideo, setEditingVideo] = useState<Video | null>(null);
+  const [editingMedia, setEditingMedia] = useState<Media | null>(null);
+  const [mediaTypeFilter, setMediaTypeFilter] = useState<
+    "all" | "video" | "image"
+  >("all");
 
-  // Load videos when screen is focused
+  // Load media when screen is focused
   useFocusEffect(
     useCallback(() => {
-      loadVideos();
+      loadMedia();
     }, [])
   );
 
-  const loadVideos = async () => {
+  const loadMedia = async () => {
     setIsLoading(true);
     try {
-      const loadedVideos = await getVideos();
-      setVideos(loadedVideos);
+      const loadedMedia = await getVideos();
+      setMediaItems(loadedMedia);
     } catch (error) {
-      console.error("Error loading videos:", error);
-      Alert.alert("Error", "Failed to load videos");
+      console.error("Error loading media:", error);
+      Alert.alert("Error", "Gagal memuat media");
     } finally {
       setIsLoading(false);
     }
   };
 
-  const openAddVideoModal = () => {
-    setEditingVideo(null);
+  const openAddMediaModal = () => {
+    setEditingMedia(null);
     setModalVisible(true);
   };
 
-  const openEditVideoModal = (video: Video) => {
-    setEditingVideo(video);
+  const openEditMediaModal = (media: Media) => {
+    setEditingMedia(media);
     setModalVisible(true);
   };
 
-  const handleSaveVideo = async (videoData: Partial<Video>) => {
+  const handleSaveMedia = async (mediaData: Partial<Media>) => {
     try {
-      if (editingVideo) {
-        // Update existing video
-        await updateVideo(editingVideo.id, videoData);
-        Alert.alert("Success", "Video Berhasil diupdate");
+      if (editingMedia) {
+        // Update existing media
+        await updateVideo(editingMedia.id, mediaData);
+        Alert.alert("Sukses", "Media berhasil diperbarui");
       } else {
-        // Add new video
-        await addVideo(videoData);
-        Alert.alert("Success", "Video Berhasil ditambahkan");
+        // Add new media
+        await addVideo(mediaData);
+        Alert.alert("Sukses", "Media berhasil ditambahkan");
       }
 
       setModalVisible(false);
-      loadVideos();
+      loadMedia();
     } catch (error) {
-      console.error("Error saat menyimpan Video:", error);
+      console.error("Error saat menyimpan media:", error);
       throw error; // Re-throw to be handled by the modal
     }
   };
 
-  const handleDeleteVideo = (video: Video) => {
+  const handleDeleteMedia = (media: Media) => {
     Alert.alert(
       "Konfirmasi",
-      `Apakah kamu yakin akan menghapus video "${video.title}"?`,
+      `Apakah kamu yakin akan menghapus ${
+        media.type === "image" ? "gambar" : "video"
+      } "${media.title}"?`,
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Batal", style: "cancel" },
         {
-          text: "Delete",
+          text: "Hapus",
           style: "destructive",
           onPress: async () => {
             try {
-              await deleteVideo(video.id);
-              loadVideos();
-              Alert.alert("Sukses", "Video Berhasil dihapus");
+              await deleteVideo(media.id);
+              loadMedia();
+              Alert.alert("Sukses", "Media berhasil dihapus");
             } catch (error) {
-              console.error("Error saat menghapus video:", error);
-              Alert.alert("Error", "Gagal menghapus video");
+              console.error("Error saat menghapus media:", error);
+              Alert.alert("Error", "Gagal menghapus media");
             }
           },
         },
       ]
     );
   };
+
+  // Filter media items based on selected type
+  const filteredMedia =
+    mediaTypeFilter === "all"
+      ? mediaItems
+      : mediaItems.filter((item) => item.type === mediaTypeFilter);
+
+  // Filter options
+  const filterOptions = [
+    { id: "all", label: "Semua" },
+    { id: "video", label: "Video" },
+    { id: "image", label: "Gambar" },
+  ];
 
   return (
     <View className="flex-1 bg-gray-50">
@@ -119,9 +139,9 @@ export default function VideoManagerScreen() {
             <Ionicons name="arrow-back" size={24} color="#fff" />
           </TouchableOpacity>
           <View>
-            <Text className="text-white text-xl font-bold">Kelola Video</Text>
+            <Text className="text-white text-xl font-bold">Kelola Media</Text>
             <Text className="text-blue-100 text-xs mt-1">
-              Tambah, edit atau hapus video
+              Tambah, edit atau hapus video dan gambar
             </Text>
           </View>
         </View>
@@ -129,27 +149,40 @@ export default function VideoManagerScreen() {
 
       {/* Content */}
       <View className="flex-1 px-5 pt-4">
-        {/* Add Video Button */}
-        <AddVideoButton onPress={openAddVideoModal} />
+        {/* Add Media Button */}
+        <AddMediaButton onPress={openAddMediaModal} />
+        {/* Filter Tabs - Fixed implementation */}
+        <View className="mb-4 bg-white rounded-lg p-2">
+          <Text className="text-gray-700 font-medium mb-1">Filter Media:</Text>
+          <Picker
+            selectedValue={mediaTypeFilter}
+            onValueChange={(itemValue) =>
+              setMediaTypeFilter(itemValue as "all" | "video" | "image")
+            }
+          >
+            <Picker.Item label="Semua" value="all" />
+            <Picker.Item label="Video" value="video" />
+            <Picker.Item label="Gambar" value="image" />
+          </Picker>
+        </View>
 
-        {/* Video List */}
+        {/* Media List */}
         <Text className="text-lg font-bold text-gray-800 mb-3">
-          Video saat ini ({videos.length})
+          Media saat ini ({filteredMedia.length})
         </Text>
-
         {isLoading ? (
           <View className="flex-1 justify-center items-center">
             <ActivityIndicator size="large" color="#407BFF" />
-            <Text className="text-gray-500 mt-4">Memuat videos...</Text>
+            <Text className="text-gray-500 mt-4">Memuat media...</Text>
           </View>
-        ) : videos.length > 0 ? (
+        ) : filteredMedia.length > 0 ? (
           <FlatList
-            data={videos}
+            data={filteredMedia}
             renderItem={({ item }) => (
-              <VideoItem
-                video={item}
-                onEdit={openEditVideoModal}
-                onDelete={handleDeleteVideo}
+              <MediaItem
+                media={item}
+                onEdit={openEditMediaModal}
+                onDelete={handleDeleteMedia}
               />
             )}
             keyExtractor={(item) => item.id.toString()}
@@ -158,8 +191,23 @@ export default function VideoManagerScreen() {
           />
         ) : (
           <EmptyState
-            title="Tidak ada video"
-            message="Ketuk `Tambah Video Baru` untuk memulai"
+            title={
+              mediaTypeFilter === "all"
+                ? "Tidak ada media"
+                : mediaTypeFilter === "video"
+                ? "Tidak ada video"
+                : "Tidak ada gambar"
+            }
+            message={
+              mediaTypeFilter === "all"
+                ? "Ketuk 'Tambah Media Baru' untuk memulai"
+                : `Ketuk 'Tambah Media Baru' untuk menambahkan ${
+                    mediaTypeFilter === "video" ? "video" : "gambar"
+                  }`
+            }
+            icon={
+              mediaTypeFilter === "image" ? "image-outline" : "videocam-outline"
+            }
           />
         )}
       </View>
@@ -168,8 +216,8 @@ export default function VideoManagerScreen() {
       <UploadModal
         visible={modalVisible}
         onClose={() => setModalVisible(false)}
-        onSave={handleSaveVideo}
-        editingVideo={editingVideo}
+        onSave={handleSaveMedia}
+        editingMedia={editingMedia}
       />
     </View>
   );

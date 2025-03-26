@@ -8,15 +8,21 @@
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
+    "jsEngine": "hermes",
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "jsEngine": "hermes"
     },
     "android": {
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/logo.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.papaniklan.app"
+      "package": "com.papaniklan.app",
+      "jsEngine": "hermes",
+      "enableProguardInReleaseBuilds": true,
+      "buildToolsVersion": "33.0.0",
+      "compileSdkVersion": 33
     },
     "web": {
       "bundler": "metro",
@@ -35,10 +41,27 @@
         }
       ],
       "expo-sqlite",
-      "expo-video"
+      [
+        "expo-video",
+        {
+          "supportsBackgroundPlayback": false,
+          "supportsPictureInPicture": false
+        }
+      ]
     ],
     "experiments": {
-      "typedRoutes": true
+      "typedRoutes": true,
+      "tsconfigPaths": true
+    },
+    "updates": {
+      "fallbackToCacheTimeout": 0,
+      "enabled": false
+    },
+    "assetBundlePatterns": [
+      "assets/images/*"
+    ],
+    "runtimeVersion": {
+      "policy": "sdkVersion"
     }
   }
 }

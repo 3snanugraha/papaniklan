@@ -1,5 +1,5 @@
 import * as SQLite from "expo-sqlite";
-import { Video } from "../types";
+import { Media } from "../types";
 
 // Database name
 const DB_NAME = "videoplayer.db";
@@ -17,6 +17,7 @@ export const initDatabase = async (): Promise<void> => {
           id INTEGER PRIMARY KEY AUTOINCREMENT,
           title TEXT NOT NULL,
           uri TEXT NOT NULL,
+          type TEXT NOT NULL DEFAULT 'video',
           thumbnail TEXT,
           duration REAL,
           created_at INTEGER,
@@ -32,45 +33,46 @@ export const initDatabase = async (): Promise<void> => {
   });
 };
 
-// Get all videos from the database
-export const getVideos = async (): Promise<Video[]> => {
+// Get all media from the database
+export const getVideos = async (): Promise<Media[]> => {
   try {
-    const result = db.getAllSync<Video>(
+    const result = db.getAllSync<Media>(
       "SELECT * FROM videos ORDER BY created_at DESC"
     );
     return result;
   } catch (error) {
-    console.error("Error getting videos:", error);
+    console.error("Error getting media:", error);
     throw error;
   }
 };
 
-// Add a new video to the database
-export const addVideo = async (video: Partial<Video>): Promise<number> => {
+// Add a new media item to the database
+export const addVideo = async (media: Partial<Media>): Promise<number> => {
   try {
     const result = db.runSync(
-      `INSERT INTO videos (title, uri, thumbnail, duration, created_at, order_index)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO videos (title, uri, type, thumbnail, duration, created_at, order_index)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
       [
-        video.title || "",
-        video.uri || "",
-        video.thumbnail || null,
-        video.duration || null,
-        video.created_at || Date.now(),
-        video.order_index || null,
+        media.title || "",
+        media.uri || "",
+        media.type || "video",
+        media.thumbnail || null,
+        media.duration || (media.type === "image" ? 8 : null),
+        media.created_at || Date.now(),
+        media.order_index || null,
       ]
     );
     return result.lastInsertRowId;
   } catch (error) {
-    console.error("Error adding video:", error);
+    console.error("Error adding media:", error);
     throw error;
   }
 };
 
-// Update an existing video in the database
+// Update an existing media item in the database
 export const updateVideo = async (
   id: number,
-  data: Partial<Video>
+  data: Partial<Media>
 ): Promise<boolean> => {
   try {
     // Build the SET part of the SQL query dynamically based on provided data
@@ -84,6 +86,10 @@ export const updateVideo = async (
     if (data.uri !== undefined) {
       updates.push("uri = ?");
       values.push(data.uri);
+    }
+    if (data.type !== undefined) {
+      updates.push("type = ?");
+      values.push(data.type);
     }
     if (data.thumbnail !== undefined) {
       updates.push("thumbnail = ?");
@@ -113,47 +119,47 @@ export const updateVideo = async (
 
     return result.changes > 0;
   } catch (error) {
-    console.error("Error updating video:", error);
+    console.error("Error updating media:", error);
     throw error;
   }
 };
 
-// Delete a video from the database
+// Delete a media item from the database
 export const deleteVideo = async (id: number): Promise<boolean> => {
   try {
     const result = db.runSync("DELETE FROM videos WHERE id = ?", [id]);
     return result.changes > 0;
   } catch (error) {
-    console.error("Error deleting video:", error);
+    console.error("Error deleting media:", error);
     throw error;
   }
 };
 
-// Get a single video by ID
-export const getVideoById = async (id: number): Promise<Video | null> => {
+// Get a single media item by ID
+export const getVideoById = async (id: number): Promise<Media | null> => {
   try {
-    const result = db.getFirstSync<Video | null>(
+    const result = db.getFirstSync<Media | null>(
       "SELECT * FROM videos WHERE id = ?",
       [id]
     );
     return result;
   } catch (error) {
-    console.error("Error getting video by ID:", error);
+    console.error("Error getting media by ID:", error);
     throw error;
   }
 };
 
-// Update the order of videos
+// Update the order of media items
 export const updateVideoOrder = async (
-  videoIds: number[]
+  mediaIds: number[]
 ): Promise<boolean> => {
   try {
     // Start a transaction
     db.execSync("BEGIN TRANSACTION");
 
-    // Update each video's order_index
-    for (let index = 0; index < videoIds.length; index++) {
-      const id = videoIds[index];
+    // Update each media's order_index
+    for (let index = 0; index < mediaIds.length; index++) {
+      const id = mediaIds[index];
       db.runSync("UPDATE videos SET order_index = ? WHERE id = ?", [index, id]);
     }
 
@@ -168,20 +174,20 @@ export const updateVideoOrder = async (
       console.error("Error rolling back transaction:", rollbackError);
     }
 
-    console.error("Error updating video order:", error);
+    console.error("Error updating media order:", error);
     throw error;
   }
 };
 
-// Get videos ordered by order_index
-export const getOrderedVideos = async (): Promise<Video[]> => {
+// Get media items ordered by order_index
+export const getOrderedVideos = async (): Promise<Media[]> => {
   try {
-    const result = db.getAllSync<Video>(
+    const result = db.getAllSync<Media>(
       "SELECT * FROM videos ORDER BY order_index ASC"
     );
     return result;
   } catch (error) {
-    console.error("Error getting ordered videos:", error);
+    console.error("Error getting ordered media:", error);
     throw error;
   }
 };

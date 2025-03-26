@@ -7,6 +7,7 @@ import {
   ActivityIndicator,
   Alert,
   StyleSheet,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { router } from "expo-router";
@@ -14,41 +15,26 @@ import { useVideoPlayer, VideoView } from "expo-video";
 import { useEvent } from "expo";
 import { LinearGradient } from "expo-linear-gradient";
 import { StatusBar } from "expo-status-bar";
-import * as ScreenOrientation from "expo-screen-orientation";
 import { getVideos } from "../../utils/database";
-import { Video } from "../../types";
+import { Media } from "../../types";
 
 const { width, height } = Dimensions.get("window");
 
-export default function VideoPlayerScreen() {
-  const [videos, setVideos] = useState<Video[]>([]);
-  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+export default function MediaPlayerScreen() {
+  const [mediaItems, setMediaItems] = useState<Media[]>([]);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [showControls, setShowControls] = useState(true);
   const [progress, setProgress] = useState(0);
   const [duration, setDuration] = useState(0);
   const [currentPosition, setCurrentPosition] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(true);
   const controlsTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const imageTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Set landscape orientation when component mounts
+  // Load media on mount
   useEffect(() => {
-    const setLandscape = async () => {
-      await ScreenOrientation.lockAsync(
-        ScreenOrientation.OrientationLock.LANDSCAPE
-      );
-    };
-
-    setLandscape();
-
-    // Return to portrait when unmounting
-    return () => {
-      ScreenOrientation.lockAsync(ScreenOrientation.OrientationLock.PORTRAIT);
-    };
-  }, []);
-
-  // Load videos on mount
-  useEffect(() => {
-    loadVideos();
+    loadMedia();
 
     // Auto-hide controls after 3 seconds
     const timeout = setTimeout(() => {
@@ -58,61 +44,65 @@ export default function VideoPlayerScreen() {
     return () => {
       if (timeout) clearTimeout(timeout);
       if (controlsTimeoutRef.current) clearTimeout(controlsTimeoutRef.current);
+      if (imageTimerRef.current) clearTimeout(imageTimerRef.current);
     };
   }, []);
 
-  const loadVideos = async () => {
+  const loadMedia = async () => {
     try {
-      const loadedVideos = await getVideos();
+      const loadedMedia = await getVideos();
 
-      if (loadedVideos.length === 0) {
+      if (loadedMedia.length === 0) {
         Alert.alert(
-          "No Videos",
-          "You don't have any videos to play. Please add some videos first.",
+          "Tidak Ada Media",
+          "Anda belum memiliki media untuk diputar. Silakan tambahkan beberapa media terlebih dahulu.",
           [{ text: "OK", onPress: () => router.back() }]
         );
         return;
       }
 
-      // Sort videos by order_index if available
-      const sortedVideos = [...loadedVideos].sort((a, b) => {
+      // Sort media by order_index if available
+      const sortedMedia = [...loadedMedia].sort((a, b) => {
         if (a.order_index !== undefined && b.order_index !== undefined) {
           return a.order_index - b.order_index;
         }
         return 0;
       });
 
-      setVideos(sortedVideos);
+      setMediaItems(sortedMedia);
       setIsLoading(false);
     } catch (error) {
-      console.error("Error loading videos:", error);
-      Alert.alert("Error", "Failed to load videos");
+      console.error("Error loading media:", error);
+      Alert.alert("Error", "Gagal memuat media");
       router.back();
     }
   };
 
-  // Initialize video player
-  const currentVideo = videos[currentVideoIndex];
-  const videoSource = currentVideo?.uri || "";
+  // Get current media item
+  const currentMedia = mediaItems[currentIndex];
+  const isCurrentImage = currentMedia?.type === "image";
+
+  // Initialize video player (only for videos)
+  const videoSource = !isCurrentImage ? currentMedia?.uri || "" : "";
 
   const player = useVideoPlayer(videoSource, (player) => {
     player.loop = false;
     player.timeUpdateEventInterval = 0.5; // Update time every 0.5 seconds
 
     // Start playing when ready
-    if (!isLoading) {
+    if (!isLoading && !isCurrentImage) {
       player.play();
     }
   });
 
   // Use the useEvent hook to track player state
-  const { isPlaying } = useEvent(player, "playingChange", {
+  const { isPlaying: videoIsPlaying } = useEvent(player, "playingChange", {
     isPlaying: player?.playing || false,
   });
 
   // Set up time update event to track progress
   useEffect(() => {
-    if (!player) return;
+    if (!player || isCurrentImage) return;
 
     const timeUpdateSubscription = player.addListener(
       "timeUpdate",
@@ -127,23 +117,67 @@ export default function VideoPlayerScreen() {
 
     // Listen for playback end
     const playToEndSubscription = player.addListener("playToEnd", () => {
-      handleVideoFinish();
+      handleMediaFinish();
     });
 
     return () => {
       timeUpdateSubscription.remove();
       playToEndSubscription.remove();
     };
-  }, [player, currentVideoIndex]);
+  }, [player, currentIndex, isCurrentImage]);
 
-  // Update player when video index changes
+  // Handle image display with timer
   useEffect(() => {
-    if (player && currentVideo) {
-      player.replace(currentVideo.uri);
+    // Clear any existing image timer
+    if (imageTimerRef.current) {
+      clearTimeout(imageTimerRef.current);
+      imageTimerRef.current = null;
     }
-  }, [currentVideoIndex, currentVideo]);
 
-  const handleVideoPress = () => {
+    if (isCurrentImage && !isLoading) {
+      // Set initial state for image
+      setIsPlaying(true);
+      setDuration(8); // 8 seconds for images
+      setProgress(0);
+      setCurrentPosition(0);
+
+      // Start progress timer for images
+      let elapsed = 0;
+      const updateInterval = 100; // Update every 100ms for smooth progress
+
+      const progressInterval = setInterval(() => {
+        elapsed += updateInterval / 1000;
+        setCurrentPosition(elapsed);
+        setProgress(elapsed / 8); // 8 seconds total
+
+        if (elapsed >= 8) {
+          clearInterval(progressInterval);
+        }
+      }, updateInterval);
+
+      // Set timer to move to next media after 8 seconds
+      imageTimerRef.current = setTimeout(() => {
+        clearInterval(progressInterval);
+        handleMediaFinish();
+      }, 8000);
+
+      return () => {
+        clearInterval(progressInterval);
+        if (imageTimerRef.current) {
+          clearTimeout(imageTimerRef.current);
+        }
+      };
+    }
+  }, [currentIndex, isCurrentImage, isLoading]);
+
+  // Update player when media index changes
+  useEffect(() => {
+    if (player && currentMedia && !isCurrentImage) {
+      player.replace(currentMedia.uri);
+    }
+  }, [currentIndex, currentMedia, isCurrentImage]);
+
+  const handleMediaPress = () => {
     setShowControls(!showControls);
 
     // Auto-hide controls after 3 seconds
@@ -159,8 +193,27 @@ export default function VideoPlayerScreen() {
   };
 
   const togglePlayPause = () => {
-    if (player) {
+    if (isCurrentImage) {
+      // For images, pause/resume the timer
+      setIsPlaying(!isPlaying);
+
       if (isPlaying) {
+        // Pause - clear the timer
+        if (imageTimerRef.current) {
+          clearTimeout(imageTimerRef.current);
+        }
+      } else {
+        // Resume - calculate remaining time and set new timer
+        const remainingTime = (8 - currentPosition) * 1000;
+        if (remainingTime > 0) {
+          imageTimerRef.current = setTimeout(() => {
+            handleMediaFinish();
+          }, remainingTime);
+        }
+      }
+    } else if (player) {
+      // For videos, use the player controls
+      if (videoIsPlaying) {
         player.pause();
       } else {
         player.play();
@@ -168,34 +221,38 @@ export default function VideoPlayerScreen() {
     }
   };
 
-  const playNextVideo = () => {
-    if (currentVideoIndex < videos.length - 1) {
-      setCurrentVideoIndex(currentVideoIndex + 1);
-      setProgress(0);
-      setCurrentPosition(0);
+  const playNextMedia = () => {
+    // Clear image timer if exists
+    if (imageTimerRef.current) {
+      clearTimeout(imageTimerRef.current);
+      imageTimerRef.current = null;
+    }
+
+    if (currentIndex < mediaItems.length - 1) {
+      setCurrentIndex(currentIndex + 1);
     } else {
-      // Loop back to first video
-      setCurrentVideoIndex(0);
-      setProgress(0);
-      setCurrentPosition(0);
+      // Loop back to first media
+      setCurrentIndex(0);
     }
   };
 
-  const playPreviousVideo = () => {
-    if (currentVideoIndex > 0) {
-      setCurrentVideoIndex(currentVideoIndex - 1);
-      setProgress(0);
-      setCurrentPosition(0);
+  const playPreviousMedia = () => {
+    // Clear image timer if exists
+    if (imageTimerRef.current) {
+      clearTimeout(imageTimerRef.current);
+      imageTimerRef.current = null;
+    }
+
+    if (currentIndex > 0) {
+      setCurrentIndex(currentIndex - 1);
     } else {
-      // Loop to last video
-      setCurrentVideoIndex(videos.length - 1);
-      setProgress(0);
-      setCurrentPosition(0);
+      // Loop to last media
+      setCurrentIndex(mediaItems.length - 1);
     }
   };
 
-  const handleVideoFinish = () => {
-    playNextVideo();
+  const handleMediaFinish = () => {
+    playNextMedia();
   };
 
   const formatTime = (seconds: number) => {
@@ -207,32 +264,42 @@ export default function VideoPlayerScreen() {
   if (isLoading) {
     return (
       <View className="flex-1 bg-black justify-center items-center">
-        <StatusBar style="light" />
+        <StatusBar style="light" hidden={true} />
         <ActivityIndicator size="large" color="#407BFF" />
-        <Text className="text-white mt-4">Loading videos...</Text>
+        <Text className="text-white mt-4">Memuat media...</Text>
       </View>
     );
   }
 
   return (
     <View className="flex-1 bg-black">
+      {/* Hide status bar completely */}
       <StatusBar style="light" hidden={true} />
 
-      {/* Video Player */}
+      {/* Media Player */}
       <TouchableOpacity
         activeOpacity={1}
-        onPress={handleVideoPress}
+        onPress={handleMediaPress}
         className="flex-1 justify-center items-center"
       >
-        {currentVideo && (
-          <VideoView
-            style={styles.videoView}
-            player={player}
-            allowsFullscreen={false}
-            nativeControls={false}
-            contentFit="contain"
-          />
-        )}
+        {currentMedia &&
+          (isCurrentImage ? (
+            // Image display
+            <Image
+              source={{ uri: currentMedia.uri }}
+              style={styles.mediaView}
+              resizeMode="contain"
+            />
+          ) : (
+            // Video player
+            <VideoView
+              style={styles.mediaView}
+              player={player}
+              allowsFullscreen={false}
+              nativeControls={false}
+              contentFit="contain"
+            />
+          ))}
       </TouchableOpacity>
 
       {/* Controls Overlay */}
@@ -244,35 +311,33 @@ export default function VideoPlayerScreen() {
             className="px-5 pt-6 pb-6"
           >
             <View className="flex-row items-center justify-between">
-              <TouchableOpacity
-                className="p-2"
-                onPress={async () => {
-                  // Return to portrait mode before going back
-                  await ScreenOrientation.lockAsync(
-                    ScreenOrientation.OrientationLock.PORTRAIT
-                  );
-                  router.back();
-                }}
-              >
+              <TouchableOpacity className="p-2" onPress={() => router.back()}>
                 <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
-              <Text className="text-white font-medium">
-                {currentVideoIndex + 1} / {videos.length}
-              </Text>
+              <View className="flex-row items-center">
+                <Text className="text-white font-medium">
+                  {currentIndex + 1} / {mediaItems.length}
+                </Text>
+                {isCurrentImage && (
+                  <View className="ml-2 bg-blue-500/50 px-2 py-0.5 rounded-full">
+                    <Text className="text-xs text-white">Gambar</Text>
+                  </View>
+                )}
+              </View>
               <View style={{ width: 28 }} />
             </View>
             <Text
               className="text-white text-xl font-bold mt-2"
               numberOfLines={1}
             >
-              {currentVideo?.title || "Untitled Video"}
+              {currentMedia?.title || "Untitled Media"}
             </Text>
           </LinearGradient>
 
           {/* Center Controls */}
           <View className="flex-row justify-center items-center px-10">
-            <TouchableOpacity className="p-4" onPress={playPreviousVideo}>
-              <Ionicons name="play-skip-back" size={40} color="#fff" />
+            <TouchableOpacity className="p-4" onPress={playPreviousMedia}>
+              <Ionicons name="play-skip-back" size={36} color="#fff" />
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -280,24 +345,28 @@ export default function VideoPlayerScreen() {
               onPress={togglePlayPause}
             >
               <Ionicons
-                name={isPlaying ? "pause" : "play"}
-                size={50}
+                name={
+                  (isCurrentImage ? isPlaying : videoIsPlaying)
+                    ? "pause"
+                    : "play"
+                }
+                size={46}
                 color="#fff"
               />
             </TouchableOpacity>
 
-            <TouchableOpacity className="p-4" onPress={playNextVideo}>
-              <Ionicons name="play-skip-forward" size={40} color="#fff" />
+            <TouchableOpacity className="p-4" onPress={playNextMedia}>
+              <Ionicons name="play-skip-forward" size={36} color="#fff" />
             </TouchableOpacity>
           </View>
 
           {/* Bottom Bar */}
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.8)"]}
-            className="px-5 pt-6 pb-10"
+            className="px-5 pt-6 pb-8"
           >
             {/* Progress Bar */}
-            <View className="h-1 bg-gray-700 rounded-full mb-2 overflow-hidden">
+            <View className="h-1.5 bg-gray-700 rounded-full mb-2 overflow-hidden">
               <View
                 className="h-full bg-[#407BFF]"
                 style={{ width: `${progress * 100}%` }}
@@ -309,7 +378,11 @@ export default function VideoPlayerScreen() {
                 {formatTime(currentPosition)}
               </Text>
               <Text className="text-white text-xs">
-                {duration ? formatTime(duration) : "Unknown"}
+                {isCurrentImage
+                  ? "0:08"
+                  : duration
+                  ? formatTime(duration)
+                  : "Unknown"}
               </Text>
             </View>
           </LinearGradient>
@@ -320,7 +393,7 @@ export default function VideoPlayerScreen() {
 }
 
 const styles = StyleSheet.create({
-  videoView: {
+  mediaView: {
     width: "100%",
     height: "100%",
   },

@@ -11,22 +11,15 @@ interface EmptyStateProps {
 export default function EmptyState({
   title,
   message,
-  icon = "videocam-outline",
+  icon = "images-outline",
 }: EmptyStateProps) {
   return (
     <View className="flex-1 justify-center items-center p-8">
-      <Ionicons
-        name={icon as any}
-        size={60}
-        color="#d1d5db"
-        className="mb-4"
-      />
+      <Ionicons name={icon as any} size={60} color="#d1d5db" className="mb-4" />
       <Text className="text-gray-400 text-center text-lg font-medium">
         {title}
       </Text>
-      <Text className="text-gray-400 text-center mt-2">
-        {message}
-      </Text>
+      <Text className="text-gray-400 text-center mt-2">{message}</Text>
     </View>
   );
 }
